@@ -59,4 +59,16 @@ def map_mongoengine_document(klass):
         return True
     return False
 
+def objectIDHack(obj, encoder=None):
+    """
+    For some reason ObjectIDs fuck everything up. I dont know why and when I try to find
+    out I end up smashing things. So here a little hack!
+
+    @param obj:
+    @param encoder:
+    @return:
+    """
+    encoder.writeObject({})
+
 pyamf.register_alias_type( MongoEngineDocumentAlias, map_mongoengine_document )
+pyamf.add_type(ObjectId, objectIDHack)
