@@ -35,6 +35,10 @@ class MongoEngineDocumentAlias( pyamf.alias.ClassAlias ):
     def getEncodableAttributes( self, obj, **kwargs ):
         attrs = pyamf.ClassAlias.getEncodableAttributes(self, obj, **kwargs)
 
+        if "_id" in attrs:
+            attrs["id"] = str(attrs["_id"])
+            del attrs["_id"]
+
         if not obj._dynamic:
             return attrs
 
