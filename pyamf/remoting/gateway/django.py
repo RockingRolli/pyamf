@@ -14,8 +14,6 @@ servers.
 django = __import__('django')
 http = django.http
 conf = django.conf
-exceptions = django.core.exceptions
-import_module = django.utils.importlib.import_module
 
 import pyamf
 from pyamf import remoting
@@ -63,33 +61,7 @@ class DjangoGateway(gateway.BaseGateway):
         kwargs['timezone_offset'] = kwargs.get('timezone_offset', tz)
         kwargs['debug'] = kwargs.get('debug', debug)
 
-        self.loadMiddleware()
-
         gateway.BaseGateway.__init__(self, *args, **kwargs)
-
-    def loadMiddleware(self):
-        self._exception_middleware = []
-
-        for middleware_path in conf.settings.GATEWAY_MIDDLEWARE:
-            try:
-                mw_module, mw_classname = middleware_path.rsplit('.', 1)
-            except ValueError:
-                raise exceptions.ImproperlyConfigured('%s isn\'t a middleware module' % middleware_path)
-            try:
-                mod = import_module(mw_module)
-            except ImportError, e:
-                raise exceptions.ImproperlyConfigured('Error importing middleware %s: "%s"' % (mw_module, e))
-            try:
-                mw_class = getattr(mod, mw_classname)
-            except AttributeError:
-                raise exceptions.ImproperlyConfigured('Middleware module "%s" does not define a "%s" class' % (mw_module, mw_classname))
-            try:
-                mw_instance = mw_class()
-            except exceptions.MiddlewareNotUsed:
-                continue
-
-            if hasattr(mw_instance, 'process_exception'):
-                self._exception_middleware.insert(0, mw_instance.process_exception)
 
     def getResponse(self, http_request, request):
         """
@@ -111,6 +83,22 @@ class DjangoGateway(gateway.BaseGateway):
             response[name] = processor(message, http_request=http_request)
 
         return response
+
+    def getProcessor(self, request):
+        """
+        Returns request processor for django!
+
+        @param request: The AMF message.
+        @type request: L{Request<remoting.Request>}
+        """
+        if request.target == 'null' or not request.target:
+            from pyamf.remoting import amf3
+
+            return amf3.RequestProcessor(self)
+        else:
+            from pyamf.remoting import django_request_processor
+
+            return django_request_processor.DjangoRequestProcessor(self)
 
     def __call__(self, http_request):
         """
@@ -179,11 +167,6 @@ class DjangoGateway(gateway.BaseGateway):
 
             return http.HttpResponseServerError(mimetype='text/plain',
                 content=response)
-
-        for body in response.bodies:
-            if isinstance(body[1].body, ErrorFault):
-                for middleware_method in self._exception_middleware:
-                    middleware_method(body, http_request)
 
         if self.logger:
             self.logger.debug("AMF Response: %r" % response)
