@@ -183,7 +183,7 @@ class DjangoGateway(gateway.BaseGateway):
         for body in response.bodies:
             if isinstance(body[1].body, ErrorFault):
                 for middleware_method in self._exception_middleware:
-                    middleware_method(body)
+                    middleware_method(body, http_request)
 
         if self.logger:
             self.logger.debug("AMF Response: %r" % response)
